@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { env } from 'cloudflare:workers';
 
 const BASE_URL='https://openapi.tossinvest.com';
 const SYMBOL_PATTERN=/^[A-Z0-9.-]{1,12}$/;
 let tokenCache:{value:string;expiresAt:number}|null=null;
 
 function runtimeVariable(name:string){
-  const value=(env as unknown as Record<string,unknown>)[name];
-  return typeof value==='string'?value:process.env[name];
+  return process.env[name];
 }
 
 async function accessToken(){
@@ -32,7 +30,7 @@ export async function GET(request:NextRequest){
     const symbol=(request.nextUrl.searchParams.get('symbol')??'').trim().toUpperCase();
     const interval=request.nextUrl.searchParams.get('interval')==='1m'?'1m':'1d';
     const count=Math.min(260,Math.max(2,Number(request.nextUrl.searchParams.get('count')??20)));
-    if(!SYMBOL_PATTERN.test(symbol))return NextResponse.json({connected:false,message:'유효한 미국주식 티커를 입력해 주세요.'},{status:400});
+    if(!SYMBOL_PATTERN.test(symbol))return NextResponse.json({connected:false,message:'유효한 종목 코드를 입력해 주세요.'},{status:400});
     const token=await accessToken();
     const candles:unknown[]=[];let before='';
     while(candles.length<count){

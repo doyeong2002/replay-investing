@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { env } from 'cloudflare:workers';
 
 type Candle={timestamp:number;close:number};
 type NewsItem={title:string;source:string;publishedAt:string;url:string};
@@ -32,7 +31,7 @@ let cache:{key:string;expiresAt:number;value:unknown}|null=null;
 let tossTokenCache:{value:string;expiresAt:number}|null=null;
 let tossCatalogCache:{value:ResolvedStock[];expiresAt:number}|null=null;
 
-function runtimeVariable(name:string){const value=(env as unknown as Record<string,unknown>)[name];return typeof value==='string'?value:process.env[name];}
+function runtimeVariable(name:string){return process.env[name];}
 function clean(value:unknown,max=260){return typeof value==='string'?value.trim().slice(0,max):'';}
 function list(value:unknown,max=4){return Array.isArray(value)?value.map(item=>clean(item)).filter(Boolean).slice(0,max):[];}
 function pct(from:number,to:number){return from?(to-from)/from*100:null;}

@@ -23,7 +23,7 @@ export interface StockQuote {
   previousClose: number | null;
   dayChange: number | null;
   dayChangeAmount: number | null;
-  currency: 'USD';
+  currency: 'USD' | 'KRW';
   updatedAt?: string;
 }
 

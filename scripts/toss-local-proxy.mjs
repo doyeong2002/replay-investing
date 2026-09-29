@@ -1,10 +1,8 @@
 import { createServer } from 'node:http';
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 const PORT = 8000;
 const BASE_URL = 'https://openapi.tossinvest.com';
-const LOCAL_DATA_URL = new URL('../.replay-local-data.json', import.meta.url);
-const LOCAL_DATA_TEMP_URL = new URL('../.replay-local-data.tmp', import.meta.url);
 const allowedOrigins = new Set(['http://localhost:3000','http://127.0.0.1:3000']);
 let tokenCache = null;
 
@@ -51,17 +49,6 @@ function sendJson(response,status,payload,origin) {
   response.end(JSON.stringify(payload));
 }
 
-async function readJsonBody(request) {
-  const chunks=[];
-  let size=0;
-  for await (const chunk of request) {
-    size+=chunk.length;
-    if(size>1_000_000) throw new Error('PAYLOAD_TOO_LARGE');
-    chunks.push(chunk);
-  }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
-}
-
 const server = createServer(async(request,response)=>{
   const origin = request.headers.origin??'';
   const requestUrl = new URL(request.url,'http://localhost');
@@ -69,19 +56,6 @@ const server = createServer(async(request,response)=>{
     response.writeHead(204,{'Access-Control-Allow-Origin':allowedOrigins.has(origin)?origin:'http://localhost:3000','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type'});
     response.end();
     return;
-  }
-  if(request.method==='POST'&&requestUrl.pathname==='/api/replay/sync'){
-    if(!allowedOrigins.has(origin))return sendJson(response,403,{saved:false,message:'허용되지 않은 출처입니다.'},origin);
-    try{
-      const data=await readJsonBody(request);
-      if(!Array.isArray(data.journals))throw new Error('INVALID_DATA');
-      const safe={journals:data.journals.slice(0,1000),syncedAt:new Date().toISOString()};
-      writeFileSync(LOCAL_DATA_TEMP_URL,JSON.stringify(safe,null,2),{mode:0o600});
-      renameSync(LOCAL_DATA_TEMP_URL,LOCAL_DATA_URL);
-      return sendJson(response,200,{saved:true,syncedAt:safe.syncedAt},origin);
-    }catch{
-      return sendJson(response,400,{saved:false,message:'복기 데이터 동기화에 실패했습니다.'},origin);
-    }
   }
   if (request.method!=='GET' || !['/api/toss/snapshot','/api/toss/prices','/api/toss/candles','/api/toss/market-indices'].includes(requestUrl.pathname)) {
     sendJson(response,404,{connected:false,message:'Not found'},origin);
@@ -101,7 +75,7 @@ const server = createServer(async(request,response)=>{
       const symbol=(requestUrl.searchParams.get('symbol')??'').trim().toUpperCase();
       const interval=requestUrl.searchParams.get('interval')==='1m'?'1m':'1d';
       const count=Math.min(260,Math.max(2,Number(requestUrl.searchParams.get('count')??20)));
-      if(!/^[A-Z0-9.-]{1,12}$/.test(symbol))return sendJson(response,400,{connected:false,message:'유효한 미국주식 티커를 입력해 주세요.'},origin);
+      if(!/^[A-Z0-9.-]{1,12}$/.test(symbol))return sendJson(response,400,{connected:false,message:'유효한 종목 코드를 입력해 주세요.'},origin);
       const candles=[];let before='';
       while(candles.length<count){
         const pageCount=Math.min(200,count-candles.length);const beforeQuery=before?`&before=${encodeURIComponent(before)}`:'';

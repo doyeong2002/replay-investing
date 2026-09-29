@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { env } from 'cloudflare:workers';
 
 type RiskInput={
   baseScore:number;
@@ -7,7 +6,6 @@ type RiskInput={
   maxWeight:number;
   todayChange:number|null;
   previousChange:number|null;
-  missingStop:number;
   holdings:Array<{symbol:string;weight:number;returnRate:number;leveraged:boolean;cryptoProxy:boolean}>;
 };
 
@@ -15,7 +13,7 @@ type AiRisk={adjustment:number;summary:string;risks:string[];positives:string[];
 type NewsContext={symbol:string;title:string;url:string;source:string;publishedAt:string};
 let cache:{key:string;expiresAt:number;value:AiRisk}|null=null;
 
-function runtimeVariable(name:string){const value=(env as unknown as Record<string,unknown>)[name];return typeof value==='string'?value:process.env[name];}
+function runtimeVariable(name:string){return process.env[name];}
 function cleanText(value:unknown,max=240){return typeof value==='string'?value.trim().slice(0,max):'';}
 function stringList(value:unknown){return Array.isArray(value)?value.map(item=>cleanText(item)).filter(Boolean).slice(0,5):[];}
 function decodeXml(value=''){return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,'$1').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();}
@@ -30,7 +28,7 @@ export async function POST(request:NextRequest){
   let input:RiskInput;
   try{input=await request.json() as RiskInput;}catch{return NextResponse.json({connected:false,message:'리스크 입력값이 올바르지 않습니다.'},{status:400});}
   const holdings=Array.isArray(input.holdings)?input.holdings.slice(0,30).map(item=>({symbol:String(item.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g,'').slice(0,12),weight:Math.max(0,Math.min(100,Number(item.weight)||0)),returnRate:Math.max(-100,Math.min(1000,Number(item.returnRate)||0)),leveraged:Boolean(item.leveraged),cryptoProxy:Boolean(item.cryptoProxy)})).filter(item=>item.symbol):[];
-  const safeInput={baseScore:Math.max(0,Math.min(100,Math.round(Number(input.baseScore)||0))),cashRatio:Math.max(0,Math.min(100,Number(input.cashRatio)||0)),maxWeight:Math.max(0,Math.min(100,Number(input.maxWeight)||0)),todayChange:Number.isFinite(input.todayChange)?Number(input.todayChange):null,previousChange:Number.isFinite(input.previousChange)?Number(input.previousChange):null,missingStop:Math.max(0,Math.min(100,Math.round(Number(input.missingStop)||0))),holdings};
+  const safeInput={baseScore:Math.max(0,Math.min(100,Math.round(Number(input.baseScore)||0))),cashRatio:Math.max(0,Math.min(100,Number(input.cashRatio)||0)),maxWeight:Math.max(0,Math.min(100,Number(input.maxWeight)||0)),todayChange:Number.isFinite(input.todayChange)?Number(input.todayChange):null,previousChange:Number.isFinite(input.previousChange)?Number(input.previousChange):null,holdings};
   if(!key)return NextResponse.json({connected:false,message:'Gemini API 키를 연결하면 최신 시장 이슈 분석이 추가됩니다.',adjustment:0,summary:'현재는 공개된 고정 계산식으로만 점수를 계산합니다.',risks:[],positives:[],positions:[],sources:[],updatedAt:new Date().toISOString()});
   const cacheKey=JSON.stringify(safeInput);if(cache&&cache.key===cacheKey&&cache.expiresAt>Date.now())return NextResponse.json({connected:true,cached:true,...cache.value});
   const headlines=await recentNews(holdings.map(item=>item.symbol));

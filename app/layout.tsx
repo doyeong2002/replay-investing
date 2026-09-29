@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
   title: 'Replay — 투자 복기와 리스크 관리',
-  description: '국내·미국주식의 보유 현황, 비중 관리, 투자 계획과 시장 분석을 한곳에서 확인하세요.',
+  description: '국내·미국주식의 보유 현황, 비중·계좌 리스크와 시장 분석을 한곳에서 확인하세요.',
   manifest:'/manifest.webmanifest',
   appleWebApp:{capable:true,statusBarStyle:'black-translucent',title:'Replay'},
   openGraph: {

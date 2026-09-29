@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { env } from 'cloudflare:workers';
 
 const BASE_URL='https://openapi.tossinvest.com';
 const SYMBOL_PATTERN=/^[A-Z0-9.-]{1,12}$/;
 let tokenCache:{value:string;expiresAt:number}|null=null;
 
 function runtimeVariable(name:string){
-  const value=(env as unknown as Record<string,unknown>)[name];
-  return typeof value==='string'?value:process.env[name];
+  return process.env[name];
 }
 
 async function accessToken(){

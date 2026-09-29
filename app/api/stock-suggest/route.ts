@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { env } from "cloudflare:workers";
 import { WATCHLIST_STOCKS } from "@/constants/watchlist";
 
 type Suggestion = { symbol: string; name: string; market: "US" | "KR" };
@@ -17,8 +16,7 @@ let tokenCache: { value: string; expiresAt: number } | null = null;
 let catalogCache: { value: Suggestion[]; expiresAt: number } | null = null;
 
 function runtimeVariable(name: string) {
-  const value = (env as unknown as Record<string, unknown>)[name];
-  return typeof value === "string" ? value : process.env[name];
+  return process.env[name];
 }
 function normalize(value: string) { return value.toLowerCase().replace(/\s+/g, ""); }
 async function token() {

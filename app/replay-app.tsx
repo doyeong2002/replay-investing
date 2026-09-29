@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  FormEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -21,7 +20,6 @@ import type {
 } from "@/types/watchlist";
 
 type Market = "KR" | "US";
-type Side = "BUY" | "SELL" | "HOLD";
 type Holding = {
   symbol: string;
   name: string;
@@ -35,21 +33,6 @@ type Holding = {
   profitLossKrw: number;
   returnRate: number;
 };
-type Journal = {
-  id: string;
-  date: string;
-  symbol: string;
-  name: string;
-  market: Market;
-  side: Side;
-  thesis: string;
-  target: number;
-  stop: number;
-  price: number;
-  quantity: number;
-  horizon: string;
-};
-type OrderDraft = Omit<Journal, "id" | "date">;
 type View =
   | "dashboard"
   | "indices"
@@ -252,19 +235,6 @@ const CRYPTO_PROXY_SYMBOLS = new Set([
   "MSTU",
   "MSTX",
 ]);
-const initialJournals: Journal[] = [];
-const emptyDraft: OrderDraft = {
-  symbol: "",
-  name: "",
-  market: "KR",
-  side: "BUY",
-  thesis: "",
-  target: 0,
-  stop: 0,
-  price: 0,
-  quantity: 1,
-  horizon: "3~6개월",
-};
 const won = (value: number) => `₩${Math.round(value).toLocaleString("ko-KR")}`;
 const nativeMoney = (value: number, market: Market) =>
   market === "KR"
@@ -279,7 +249,6 @@ const portfolioMoney = (
   return display === "KRW" ? won(valueKrw) : usd;
 };
 const pct = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
-const today = () => new Date().toISOString().slice(0, 10);
 const isPrivateAppHost = (hostname: string) =>
   hostname === "localhost" ||
   hostname === "127.0.0.1" ||
@@ -418,10 +387,6 @@ export default function ReplayApp() {
   const [view, setView] = useState<View>("dashboard");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [journals, setJournals] = useState<Journal[]>(initialJournals);
-  const [modal, setModal] = useState(false);
-  const [draft, setDraft] = useState<OrderDraft>(emptyDraft);
-  const [step, setStep] = useState<"plan" | "review">("plan");
   const [apiState, setApiState] = useState<
     "demo" | "loading" | "connected" | "error"
   >("demo");
@@ -435,7 +400,6 @@ export default function ReplayApp() {
   const [currencyDisplay, setCurrencyDisplay] =
     useState<CurrencyDisplay>("KRW");
   const [toast, setToast] = useState("");
-  const [localReady, setLocalReady] = useState(false);
   const [closeReferences, setCloseReferences] = useState<
     Record<string, CloseReference>
   >({});
@@ -459,26 +423,6 @@ export default function ReplayApp() {
   }, [theme]);
 
   useEffect(() => {
-    let savedJournalItems: Journal[] = [];
-    try {
-      const savedJournals = localStorage.getItem("replay:journals");
-      if (savedJournals)
-        savedJournalItems = (JSON.parse(savedJournals) as Journal[]).filter(
-          (j) => !j.id.startsWith("seed-"),
-        );
-    } catch {
-      /* 손상된 로컬 데이터는 기본값으로 복구 */
-    }
-    const id = setTimeout(() => {
-      setJournals(savedJournalItems);
-      setLocalReady(true);
-    }, 0);
-    return () => clearTimeout(id);
-  }, []);
-  useEffect(() => {
-    localStorage.setItem("replay:journals", JSON.stringify(journals));
-  }, [journals]);
-  useEffect(() => {
     if (toast) {
       const id = setTimeout(() => setToast(""), 2600);
       return () => clearTimeout(id);
@@ -498,21 +442,6 @@ export default function ReplayApp() {
       localStorage.setItem("replay:currency-display", currencyDisplay);
     } catch {}
   }, [currencyDisplay]);
-  useEffect(() => {
-    if (
-      !localReady ||
-      !["localhost", "127.0.0.1"].includes(window.location.hostname)
-    )
-      return;
-    const id = setTimeout(() => {
-      void fetch("http://127.0.0.1:8000/api/replay/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ journals }),
-      }).catch(() => {});
-    }, 300);
-    return () => clearTimeout(id);
-  }, [localReady, journals]);
   useEffect(() => {
     if (!isPrivateAppHost(window.location.hostname)) return;
     const refresh = () => {
@@ -678,105 +607,6 @@ export default function ReplayApp() {
     return { previous: calculate("previous"), today: calculate("today") };
   }, [holdings, closeReferences, exchangeRate, holdingsValue, buyingPower]);
 
-  const calc = useMemo(() => {
-    const nativeAmount = draft.price * draft.quantity;
-    const amountKrw =
-      draft.market === "KR" ? nativeAmount : nativeAmount * KRW_PER_USD;
-    const feeRate = draft.market === "KR" ? 0.00015 : 0.001;
-    const feeNative = nativeAmount * feeRate;
-    const current =
-      holdings.find(
-        (h) => h.symbol.toUpperCase() === draft.symbol.toUpperCase(),
-      )?.valueKrw || 0;
-    const projectedTotal =
-      draft.side === "BUY" ? totalAssets + amountKrw : totalAssets;
-    const projectedWeight = projectedTotal
-      ? ((current + (draft.side === "BUY" ? amountKrw : -amountKrw)) /
-          projectedTotal) *
-        100
-      : 0;
-    const downside =
-      draft.side === "BUY" && draft.stop > 0
-        ? Math.max(0, (draft.price - draft.stop) * draft.quantity) + feeNative
-        : 0;
-    const downsideKrw =
-      draft.market === "KR" ? downside : downside * KRW_PER_USD;
-    const riskReward =
-      draft.target > draft.price && draft.price > draft.stop
-        ? (draft.target - draft.price) / (draft.price - draft.stop)
-        : 0;
-    const warnings: string[] = [];
-    if (draft.side === "BUY" && draft.thesis.trim().length < 10)
-      warnings.push("투자 근거를 10자 이상 기록해 주세요.");
-    if (draft.side === "BUY" && !(draft.stop > 0 && draft.stop < draft.price))
-      warnings.push("손절가는 주문가보다 낮게 입력해 주세요.");
-    if (draft.side === "BUY" && !(draft.target > draft.price))
-      warnings.push("목표가는 주문가보다 높게 입력해 주세요.");
-    if (projectedWeight > 40)
-      warnings.push(
-        `예상 종목 비중 ${projectedWeight.toFixed(1)}%로 상한 40%를 넘습니다.`,
-      );
-    if ((downsideKrw / totalAssets) * 100 > 2)
-      warnings.push("이번 주문의 최대손실이 총자산의 2%를 넘습니다.");
-    if (draft.side === "BUY" && amountKrw > buyingPower)
-      warnings.push("매수 가능 금액을 초과합니다.");
-    return {
-      nativeAmount,
-      amountKrw,
-      feeNative,
-      projectedWeight,
-      downsideKrw,
-      riskReward,
-      warnings,
-    };
-  }, [draft, holdings, totalAssets, buyingPower]);
-
-  function openOrder(seed?: Holding) {
-    setDraft(
-      seed
-        ? {
-            symbol: seed.symbol,
-            name: seed.name,
-            market: seed.market,
-            side: "BUY",
-            thesis: "",
-            target: 0,
-            stop: 0,
-            price: seed.lastPrice,
-            quantity: 1,
-            horizon: "3~6개월",
-          }
-        : emptyDraft,
-    );
-    setStep("plan");
-    setModal(true);
-  }
-  function openWatchlistOrder(item: WatchlistItem) {
-    setDraft({
-      symbol: item.ticker,
-      name: item.nameKo,
-      market: "US",
-      side: "BUY",
-      thesis: "",
-      target: 0,
-      stop: 0,
-      price: item.quote?.lastPrice ?? 0,
-      quantity: 1,
-      horizon: "3~6개월",
-    });
-    setStep("plan");
-    setModal(true);
-  }
-  function saveJournal() {
-    const entry: Journal = {
-      ...draft,
-      id: crypto.randomUUID(),
-      date: today(),
-    };
-    setJournals((prev) => [entry, ...prev]);
-    setModal(false);
-    setToast("투자 계획을 기록했습니다.");
-  }
   async function connectToss(options: { silent?: boolean } = {}) {
     if (!options.silent) {
       setApiState("loading");
@@ -944,7 +774,7 @@ export default function ReplayApp() {
       <div className="safety-strip">
         <div className="safety-summary">
           <span className="safety-mode">
-            <i>✓</i> 조회·투자 계획 전용
+            <i>✓</i> 조회·분석 전용
           </span>
           <span className="safety-lock">🔒 실거래 차단</span>
         </div>
@@ -967,8 +797,6 @@ export default function ReplayApp() {
             portfolioReturn={portfolioReturn}
             accountMoves={accountMoves}
             biggestWeight={biggestWeight}
-            journals={journals}
-            onOrder={openOrder}
           />
         )}
         {view === "indices" && <IndicesView />}
@@ -976,14 +804,9 @@ export default function ReplayApp() {
           <WatchlistView
             holdings={holdings}
             exchangeRate={exchangeRate}
-            onPlan={openWatchlistOrder}
           />
         )}
-        {view === "rehearsal" && (
-          <RiskRehearsalView
-            onOrder={() => openOrder()}
-          />
-        )}
+        {view === "rehearsal" && <RiskRehearsalView />}
         {view === "review" && (
           <ReviewView
             holdings={holdings}
@@ -997,18 +820,6 @@ export default function ReplayApp() {
         {view === "radar" && <EarningsView />}
         {view === "calendar" && <WeeklyCalendarView holdings={holdings} />}
       </div>
-      {modal && (
-        <OrderModal
-          draft={draft}
-          setDraft={setDraft}
-          step={step}
-          setStep={setStep}
-          calc={calc}
-          totalAssets={totalAssets}
-          onClose={() => setModal(false)}
-          onSave={saveJournal}
-        />
-      )}
       {toast && (
         <div className="toast" role="status">
           ✓ {toast}
@@ -1887,21 +1698,6 @@ function AiAnalysisView() {
   const [result, setResult] = useState<StockAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [pricePlan, setPricePlan] = useState({ target: "", stop: "", horizon: "6개월" });
-  const [planSaved, setPlanSaved] = useState(false);
-  useEffect(() => {
-    if (!result) return;
-    const symbol = result.symbol;
-    const timer = window.setTimeout(() => {
-      setPlanSaved(false);
-      try {
-        const saved = localStorage.getItem(`replay:price-plan:${symbol}`);
-        const data = saved ? JSON.parse(saved) as { target?: string; stop?: string; horizon?: string } : null;
-        setPricePlan({ target: data?.target ?? "", stop: data?.stop ?? "", horizon: data?.horizon ?? "6개월" });
-      } catch { setPricePlan({ target: "", stop: "", horizon: "6개월" }); }
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [result?.symbol]);
   const analyze = (nextQuery = query) => {
     const trimmed = nextQuery.trim();
     if (!trimmed || loading) return;
@@ -1938,10 +1734,6 @@ function AiAnalysisView() {
       : result?.currency === "KRW"
         ? won(value)
         : `$${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-  const savePricePlan = () => {
-    if (!result) return;
-    try { localStorage.setItem(`replay:price-plan:${result.symbol}`, JSON.stringify(pricePlan)); setPlanSaved(true); } catch { setPlanSaved(false); }
-  };
   return (
     <section className="full-view ai-analysis-view">
       <div className="view-header ai-analysis-header">
@@ -2024,18 +1816,12 @@ function AiAnalysisView() {
             <article className="card"><span>20일 저항</span><strong>{price(result.resistance)}</strong><small>돌파 전 추격 진입 주의</small></article>
           </div>
           <section className="card ai-target-plan">
-            <header><div><p className="eyebrow">TARGET · SCENARIO</p><h2>목표가·시나리오</h2></div><small>조회·기록 전용</small></header>
+            <header><div><p className="eyebrow">ANALYST CONSENSUS</p><h2>애널리스트 목표가</h2></div><small>조회 전용</small></header>
             <div className="target-consensus">
               <article><span>시장 평균 목표가</span><strong>{result.analystTarget ? price(result.analystTarget.average) : "—"}</strong><small>{result.analystTarget ? `현재가 대비 ${pct(((result.analystTarget.average - result.price) / result.price) * 100)}` : "미국주식 컨센서스 확인 중"}</small></article>
               <article><span>목표가 범위</span><strong>{result.analystTarget ? `${price(result.analystTarget.low)} — ${price(result.analystTarget.high)}` : "—"}</strong><small>{result.analystTarget ? `${result.analystTarget.analystCount}명 애널리스트 기준` : "국내·ETF는 제공되지 않을 수 있음"}</small></article>
             </div>
-            <div className="target-personal">
-              <label>내 목표가<input inputMode="decimal" value={pricePlan.target} onChange={(event) => { setPlanSaved(false); setPricePlan({ ...pricePlan, target: event.target.value }); }} placeholder={result.currency === "USD" ? "예: 180" : "예: 250000"} /></label>
-              <label>무효화 가격(손절 기준)<input inputMode="decimal" value={pricePlan.stop} onChange={(event) => { setPlanSaved(false); setPricePlan({ ...pricePlan, stop: event.target.value }); }} placeholder={result.currency === "USD" ? "예: 120" : "예: 180000"} /></label>
-              <label>검토 기간<select value={pricePlan.horizon} onChange={(event) => { setPlanSaved(false); setPricePlan({ ...pricePlan, horizon: event.target.value }); }}><option>3개월</option><option>6개월</option><option>12개월</option></select></label>
-              <button type="button" className="secondary-button" onClick={savePricePlan}>{planSaved ? "저장됨" : "기준 저장"}</button>
-            </div>
-            <p>시장 목표가는 애널리스트 컨센서스일 뿐 예측이나 매수 권유가 아닙니다. 내 목표가와 손절 기준은 이 기기에서만 저장됩니다.</p>
+            <p>시장 목표가는 애널리스트 컨센서스일 뿐 예측이나 매수 권유가 아닙니다.</p>
           </section>
           <div className="ai-analysis-columns">
             <article className="card ai-reason-card positive-card">
@@ -2087,7 +1873,7 @@ const QUICK_REHEARSAL_STOCKS: Record<StressFactor, string[]> = {
   OIL: ["XOM", "CVX", "OXY", "SLB", "COP", "HAL"],
 };
 
-function RiskRehearsalView({ onOrder }: { onOrder: () => void }) {
+function RiskRehearsalView() {
   const [factor, setFactor] = useState<StressFactor>("NASDAQ");
   const [thresholdInput, setThresholdInput] = useState("0");
   const [query, setQuery] = useState("");
@@ -2124,7 +1910,7 @@ function RiskRehearsalView({ onOrder }: { onOrder: () => void }) {
   };
   return (
     <section className="full-view rehearsal-view">
-      <div className="view-header rehearsal-header"><div><p className="eyebrow">HISTORICAL REACTION · READ ONLY</p><h1>리스크 리허설</h1><p>“시장이 이만큼 움직였던 날, 이 종목은 평균 어떻게 반응했나”를 과거 일봉으로 확인합니다.</p></div><button className="primary-button" onClick={onOrder}>＋ 계획 기록</button></div>
+      <div className="view-header rehearsal-header"><div><p className="eyebrow">HISTORICAL REACTION · READ ONLY</p><h1>리스크 리허설</h1><p>“시장이 이만큼 움직였던 날, 이 종목은 평균 어떻게 반응했나”를 과거 일봉으로 확인합니다.</p></div></div>
       <article className="rehearsal-hero card">
         <div className="factor-tabs">{STRESS_FACTORS.map((item) => <button key={item.id} className={factor === item.id ? "active" : ""} onClick={() => { setFactor(item.id); setResult(null); }}><b>{item.label}</b></button>)}</div>
         <form className="reaction-search" onSubmit={(event) => { event.preventDefault(); const valid = threshold !== 0 && threshold >= -30 && threshold <= 100; if (!valid || !thresholdInput.trim()) { setError("변동률을 -30%~+100% 범위에서 0이 아니게 입력해 주세요."); return; } load(); }}>
@@ -2308,11 +2094,9 @@ function MarketRadarView({ holdings, totalAssets, accountMove }: { holdings: Hol
 function WatchlistView({
   holdings,
   exchangeRate,
-  onPlan,
 }: {
   holdings: Holding[];
   exchangeRate: number;
-  onPlan: (item: WatchlistItem) => void;
 }) {
   const heldStocks = useMemo(
     () =>
@@ -2543,11 +2327,6 @@ function WatchlistView({
           )}
           exchangeRate={exchangeRate}
           onClose={() => setSelectedItem(null)}
-          onPlan={() => {
-            setSelectedItem(null);
-            onPlan(selectedItem);
-          }}
-          showPlan={false}
           onRemove={() => {
             if (removeTicker(selectedItem.ticker)) setSelectedItem(null);
           }}
@@ -2663,9 +2442,11 @@ function MiniSparkline({ values }: { values: number[] }) {
 function DetailPriceChart({
   candles,
   period,
+  market = "US",
 }: {
   candles: StockCandle[];
   period: ChartPeriod;
+  market?: Market;
 }) {
   const { cursor, handlers, chartRef } = useTouchChartCursor(candles.length);
   if (candles.length < 2)
@@ -2673,7 +2454,7 @@ function DetailPriceChart({
   const width = 360;
   const height = 174;
   const left = 8;
-  const right = 57;
+  const right = market === "KR" ? 78 : 57;
   const top = 12;
   const bottom = 26;
   const lows = candles.map((candle) => candle.lowPrice);
@@ -2708,6 +2489,8 @@ function DetailPriceChart({
   const periodLabel =
     period === "1D"
       ? "일봉"
+      : period === "1W"
+        ? "1주"
       : period === "1M"
         ? "1개월"
         : period === "3M"
@@ -2739,7 +2522,7 @@ function DetailPriceChart({
             <g key={value}>
               <line x1={left} x2={width - right + 4} y1={y} y2={y} />
               <text x={width - right + 9} y={y + 3}>
-                ${value.toFixed(2)}
+                {nativeMoney(value, market)}
               </text>
             </g>
           );
@@ -2757,7 +2540,7 @@ function DetailPriceChart({
               y={top + 3}
               width={106}
               date={chartMoment(selected.timestamp, period === "1D")}
-              value={`$${selected.value.toFixed(2)}`}
+              value={nativeMoney(selected.value, market)}
             />
           </g>
         )}
@@ -2771,11 +2554,11 @@ function DetailPriceChart({
       <div className="chart-range">
         <span>
           <small>{periodLabel} 최저</small>
-          <b>${rawMin.toFixed(2)}</b>
+          <b>{nativeMoney(rawMin, market)}</b>
         </span>
         <span>
           <small>{periodLabel} 최고</small>
-          <b>${rawMax.toFixed(2)}</b>
+          <b>{nativeMoney(rawMax, market)}</b>
         </span>
       </div>
     </div>
@@ -2787,17 +2570,13 @@ function StockDetailDrawer({
   holding,
   exchangeRate,
   onClose,
-  onPlan,
   onRemove,
-  showPlan = true,
 }: {
   item: WatchlistItem;
   holding?: Holding;
   exchangeRate: number;
   onClose: () => void;
-  onPlan: () => void;
   onRemove?: () => void;
-  showPlan?: boolean;
 }) {
   const [period, setPeriod] = useState<ChartPeriod>("1D");
   const [candles, setCandles] = useState<StockCandle[]>([]);
@@ -2900,7 +2679,10 @@ function StockDetailDrawer({
     holding?.lastPrice,
     closes.at(-1),
   ].find((value) => typeof value === "number" && value > 0);
-  const shownPrice = splitUsPrice(currentPrice, exchangeRate);
+  const market = holding?.market ?? "US";
+  const shownPrice = market === "KR"
+    ? { primary: currentPrice === undefined ? "—" : nativeMoney(currentPrice, market), secondary: "" }
+    : splitUsPrice(currentPrice, exchangeRate);
   const periodLabel =
     period === "1D"
       ? "일봉"
@@ -2935,7 +2717,7 @@ function StockDetailDrawer({
             <StockLogo ticker={item.ticker} name={item.nameKo} size="large" />
             <span>
               <b>{item.ticker}</b>
-              <small>{item.nameKo} · US</small>
+              <small>{item.nameKo} · {market}</small>
             </span>
           </div>
           <button onClick={onClose} aria-label="닫기">
@@ -2992,7 +2774,7 @@ function StockDetailDrawer({
           ) : error ? (
             <div className="chart-state error">{error}</div>
           ) : (
-            <DetailPriceChart candles={candles} period={period} />
+            <DetailPriceChart candles={candles} period={period} market={market} />
           )}
         </section>
         <section className="drawer-metrics">
@@ -3007,13 +2789,13 @@ function StockDetailDrawer({
           <div>
             <span>평균 단가</span>
             <strong>
-              {holding ? formatUsPrice(holding.averagePrice) : "—"}
+              {holding ? nativeMoney(holding.averagePrice, market) : "—"}
             </strong>
           </div>
           <div>
             <span>평가 금액</span>
             <strong>
-              {holding ? formatUsPrice(holding.valueNative) : "—"}
+              {holding ? nativeMoney(holding.valueNative, market) : "—"}
             </strong>
           </div>
           <div>
@@ -3072,11 +2854,10 @@ function StockDetailDrawer({
         <div className="drawer-note">
           <b>리스크 먼저 확인하세요</b>
           <p>
-            고변동성 종목은 목표가와 손절가를 기록하고, 계획을 저장하기 전에
-            예상 최대손실과 비중을 확인하세요.
+            고변동성 종목은 보유 비중과 가격 변동폭을 함께 확인하세요.
+            과거 차트와 뉴스만으로 미래 가격을 확정할 수는 없습니다.
           </p>
         </div>
-        {showPlan && <button className="primary-button drawer-plan" onClick={onPlan}>투자 계획 기록하기 →</button>}
         {!holding && onRemove && <button className="drawer-remove" onClick={onRemove}>관심종목에서 삭제</button>}
       </aside>
     </div>
@@ -3291,8 +3072,6 @@ function Dashboard({
   portfolioReturn,
   accountMoves,
   biggestWeight,
-  journals,
-  onOrder,
 }: {
   holdings: Holding[];
   totalAssets: number;
@@ -3308,8 +3087,6 @@ function Dashboard({
   portfolioReturn: number;
   accountMoves: { previous: AccountMove; today: AccountMove };
   biggestWeight: number;
-  journals: Journal[];
-  onOrder: (h?: Holding) => void;
 }) {
   const [moveCurrency, setMoveCurrency] = useState<"KRW" | "USD">("KRW");
   const [riskOpen, setRiskOpen] = useState(false);
@@ -3434,7 +3211,7 @@ function Dashboard({
           previousClose: null,
           dayChange: null,
           dayChangeAmount: null,
-          currency: "USD",
+          currency: selectedHolding.currency,
         },
         priceHistory: [],
       }
@@ -3453,14 +3230,6 @@ function Dashboard({
         totalAssets) *
       100
     : 0;
-  const missingHoldingStops = holdings.filter(
-    (holding) =>
-      !journals.some(
-        (journal) =>
-          journal.symbol.toUpperCase() === holding.symbol.toUpperCase() &&
-          journal.stop > 0,
-      ),
-  ).length;
   const concentrationImpact =
     biggestWeight <= 15
       ? 8
@@ -3483,8 +3252,6 @@ function Dashboard({
         ? 2
         : -Math.min(12, Math.max(1, Math.round((cryptoExposure - 15) * 0.35)));
   const cashImpact = cash >= 20 ? 8 : cash >= 10 ? 4 : cash >= 5 ? -3 : -8;
-  const stopImpact =
-    missingHoldingStops === 0 ? 8 : -Math.min(15, missingHoldingStops * 5);
   const liveMove = Math.abs(accountMoves.today.percent);
   const moveImpact = accountMoves.today.available
     ? liveMove <= 1
@@ -3527,14 +3294,6 @@ function Dashboard({
         "현금 20% 이상은 +8점, 10% 이상은 +4점이며 10% 미만은 대응 여력 부족으로 차감합니다.",
     },
     {
-      key: "stop",
-      label: "보유종목 손절 계획",
-      value: `손절가 미기록 ${missingHoldingStops}개`,
-      impact: stopImpact,
-      explanation:
-        "모든 보유 종목에 손절가가 있으면 +8점, 누락 종목은 1개당 5점씩 차감합니다.",
-    },
-    {
       key: "move",
       label: "오늘 계좌 변동성",
       value: accountMoves.today.available
@@ -3549,7 +3308,7 @@ function Dashboard({
     0,
     Math.min(
       100,
-      60 + riskFactors.reduce((sum, factor) => sum + factor.impact, 0),
+      68 + riskFactors.reduce((sum, factor) => sum + factor.impact, 0),
     ),
   );
   const riskPayload = {
@@ -3562,7 +3321,6 @@ function Dashboard({
     previousChange: accountMoves.previous.available
       ? accountMoves.previous.percent
       : null,
-    missingStop: missingHoldingStops,
     holdings: holdings.map((h) => ({
       symbol: h.symbol.toUpperCase(),
       weight: totalAssets ? (h.valueKrw / totalAssets) * 100 : 0,
@@ -3573,6 +3331,7 @@ function Dashboard({
   };
   const riskSignature = JSON.stringify(riskPayload);
   useEffect(() => {
+    if (holdings.length === 0) return;
     let active = true;
     const run = () => {
       void fetch("/api/risk-analysis", {
@@ -3608,7 +3367,7 @@ function Dashboard({
       active = false;
       window.clearInterval(interval);
     };
-  }, [riskSignature]);
+  }, [riskSignature, holdings.length]);
   const refreshRisk = () => {
     setRiskLoading(true);
     void fetch("/api/risk-analysis", {
@@ -3637,8 +3396,11 @@ function Dashboard({
     0,
     Math.min(100, baseRiskScore + (aiRisk?.connected ? aiRisk.adjustment : 0)),
   );
+  const hasRiskData = holdings.length > 0;
   const riskLabel =
-    finalRiskScore >= 85
+    !hasRiskData
+      ? "보유 종목 없음"
+      : finalRiskScore >= 85
       ? "안정 구간"
       : finalRiskScore >= 70
         ? "주의 구간"
@@ -3862,9 +3624,7 @@ function Dashboard({
                     <button
                       className="holding-row"
                       key={h.symbol}
-                      onClick={() =>
-                        h.market === "US" ? setSelectedHolding(h) : onOrder(h)
-                      }
+                      onClick={() => setSelectedHolding(h)}
                     >
                       <StockLogo ticker={h.symbol} name={h.name} />
                       <div className="stock-name">
@@ -3917,19 +3677,22 @@ function Dashboard({
               <small
                 className={`risk-ai-badge ${aiRisk?.connected ? "connected" : ""}`}
               >
-                {riskLoading
+                {!hasRiskData
+                  ? "보유 종목 연결 후 계산"
+                  : riskLoading
                   ? "시장 분석 중"
                   : aiRisk?.connected
                     ? "Gemini 최신 이슈 반영"
                     : "규칙 점수 · Gemini 연결 전"}
               </small>
             </div>
-            <span className="risk-score">{finalRiskScore}</span>
+            <span className="risk-score">{hasRiskData ? finalRiskScore : "—"}</span>
           </div>
-          <div className="risk-meter">
-            <span style={{ width: `${Math.max(8, finalRiskScore)}%` }} />
-          </div>
-          <div className="risk-list">
+          {hasRiskData ? <>
+            <div className="risk-meter">
+              <span style={{ width: `${Math.max(8, finalRiskScore)}%` }} />
+            </div>
+            <div className="risk-list">
             <div>
               <span>
                 <i className={biggestWeight <= 25 ? "ok" : "warn"}>
@@ -3975,16 +3738,17 @@ function Dashboard({
                 </strong>
               </div>
             )}
-          </div>
-          <button
-            className="secondary-button"
-            onClick={() => setRiskOpen(true)}
-          >
-            점수와 근거 자세히 보기 <span>→</span>
-          </button>
+            </div>
+            <button
+              className="secondary-button"
+              onClick={() => setRiskOpen(true)}
+            >
+              점수와 근거 자세히 보기 <span>→</span>
+            </button>
+          </> : <p className="risk-empty">토스 계좌의 보유 종목을 연결하면 비중과 노출을 분석합니다.</p>}
         </article>
       </section>
-      {riskOpen && (
+      {riskOpen && hasRiskData && (
         <RiskDetailDrawer
           baseScore={baseRiskScore}
           finalScore={finalRiskScore}
@@ -4001,11 +3765,6 @@ function Dashboard({
           holding={selectedHolding}
           exchangeRate={exchangeRate}
           onClose={() => setSelectedHolding(null)}
-          onPlan={() => {
-            const holding = selectedHolding;
-            setSelectedHolding(null);
-            onOrder(holding);
-          }}
         />
       )}
     </>
@@ -4328,271 +4087,5 @@ function ReviewView({
         </p>
       </section>
     </section>
-  );
-}
-
-function OrderModal({
-  draft,
-  setDraft,
-  step,
-  setStep,
-  calc,
-  totalAssets,
-  onClose,
-  onSave,
-}: {
-  draft: OrderDraft;
-  setDraft: (d: OrderDraft) => void;
-  step: "plan" | "review";
-  setStep: (s: "plan" | "review") => void;
-  calc: {
-    nativeAmount: number;
-    amountKrw: number;
-    feeNative: number;
-    projectedWeight: number;
-    downsideKrw: number;
-    riskReward: number;
-    warnings: string[];
-  };
-  totalAssets: number;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  const set = (key: keyof OrderDraft, value: string | number) =>
-    setDraft({ ...draft, [key]: value });
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    setStep("review");
-  }
-  return (
-    <div
-      className="modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label="새 매매 기록"
-    >
-      <div className="order-modal">
-        <div className="modal-header">
-          <div>
-            <span className="modal-kicker">INVESTMENT PLAN</span>
-            <h2>{step === "plan" ? "새 투자 계획" : "계획 저장 전 확인"}</h2>
-          </div>
-          <button className="close-button" onClick={onClose} aria-label="닫기">
-            ×
-          </button>
-        </div>
-        <div className="stepper">
-          <span className="complete">
-            1 <b>계획 기록</b>
-          </span>
-          <i />
-          <span className={step !== "plan" ? "complete" : ""}>
-            2 <b>리스크 확인</b>
-          </span>
-        </div>
-        {step === "plan" && (
-          <form onSubmit={submit} className="order-form">
-            <div className="form-row thirds">
-              <label>
-                시장
-                <select
-                  value={draft.market}
-                  onChange={(e) => set("market", e.target.value)}
-                >
-                  <option value="KR">국내주식</option>
-                  <option value="US">미국주식</option>
-                </select>
-              </label>
-              <label>
-                행동
-                <select
-                  value={draft.side}
-                  onChange={(e) => set("side", e.target.value)}
-                >
-                  <option value="BUY">매수</option>
-                  <option value="SELL">매도</option>
-                  <option value="HOLD">보유 판단</option>
-                </select>
-              </label>
-              <label>
-                투자 기간
-                <select
-                  value={draft.horizon}
-                  onChange={(e) => set("horizon", e.target.value)}
-                >
-                  <option>1~3개월</option>
-                  <option>3~6개월</option>
-                  <option>6~12개월</option>
-                  <option>12개월+</option>
-                </select>
-              </label>
-            </div>
-            <div className="form-row">
-              <label>
-                종목 코드
-                <input
-                  required
-                  value={draft.symbol}
-                  onChange={(e) => set("symbol", e.target.value.toUpperCase())}
-                  placeholder={draft.market === "KR" ? "005930" : "AAPL"}
-                />
-              </label>
-              <label>
-                종목명
-                <input
-                  required
-                  value={draft.name}
-                  onChange={(e) => set("name", e.target.value)}
-                  placeholder={draft.market === "KR" ? "삼성전자" : "Apple"}
-                />
-              </label>
-            </div>
-            <label>
-              왜 지금 이 종목인가요?
-              <textarea
-                required
-                minLength={10}
-                value={draft.thesis}
-                onChange={(e) => set("thesis", e.target.value)}
-                placeholder="실적, 밸류에이션, 매수 시점과 무효화 조건을 적어주세요."
-              />
-            </label>
-            <div className="form-row thirds">
-              <label>
-                주문가
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  required
-                  value={draft.price || ""}
-                  onChange={(e) => set("price", Number(e.target.value))}
-                />
-              </label>
-              <label>
-                목표가
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  required
-                  value={draft.target || ""}
-                  onChange={(e) => set("target", Number(e.target.value))}
-                />
-              </label>
-              <label>
-                손절가
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  required
-                  value={draft.stop || ""}
-                  onChange={(e) => set("stop", Number(e.target.value))}
-                />
-              </label>
-            </div>
-            <label>
-              수량
-              <input
-                type="number"
-                min="1"
-                step="1"
-                required
-                value={draft.quantity}
-                onChange={(e) => set("quantity", Number(e.target.value))}
-              />
-            </label>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={onSave}
-              >
-                계획만 저장
-              </button>
-              <button className="primary-button">리스크 계산하기 →</button>
-            </div>
-          </form>
-        )}
-        {step === "review" && (
-          <div className="review-order">
-            <div className="order-ticket">
-              <span>
-                {draft.market === "KR" ? "국내" : "미국"} ·{" "}
-                {draft.side === "BUY" ? "매수" : "매도"}
-              </span>
-              <h3>
-                {draft.name} <small>{draft.symbol}</small>
-              </h3>
-              <strong>{nativeMoney(calc.nativeAmount, draft.market)}</strong>
-              <p>
-                {nativeMoney(draft.price, draft.market)} × {draft.quantity}주
-              </p>
-            </div>
-            <div className="risk-calc-grid">
-              <div>
-                <span>예상 수수료</span>
-                <strong>{nativeMoney(calc.feeNative, draft.market)}</strong>
-              </div>
-              <div>
-                <span>주문 후 종목 비중</span>
-                <strong className={calc.projectedWeight > 40 ? "negative" : ""}>
-                  {calc.projectedWeight.toFixed(1)}%
-                </strong>
-              </div>
-              <div>
-                <span>손절 시 최대손실</span>
-                <strong>{won(calc.downsideKrw)}</strong>
-                <small>
-                  총자산의 {((calc.downsideKrw / totalAssets) * 100).toFixed(2)}
-                  %
-                </small>
-              </div>
-              <div>
-                <span>손익비</span>
-                <strong>
-                  {calc.riskReward ? `1 : ${calc.riskReward.toFixed(2)}` : "—"}
-                </strong>
-              </div>
-            </div>
-            {calc.warnings.length > 0 ? (
-              <div className="warning-box">
-                <b>확인이 필요한 항목</b>
-                {calc.warnings.map((w) => (
-                  <p key={w}>! {w}</p>
-                ))}
-              </div>
-            ) : (
-              <div className="safe-box">
-                ✓ 설정한 비중과 최대손실 기준 안에 있습니다.
-              </div>
-            )}
-            <div className="lock-notice">
-              <span>🔒</span>
-              <div>
-                <b>실제 주문은 전송되지 않습니다</b>
-                <p>
-                  이 화면은 투자 계획만 기록합니다. 토스증권 주문 API 호출
-                  코드는 포함하지 않았습니다.
-                </p>
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button className="ghost-button" onClick={() => setStep("plan")}>
-                ← 수정
-              </button>
-              <button
-                className="primary-button"
-                disabled={calc.warnings.length > 0}
-                onClick={onSave}
-              >
-                계획 저장
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
   );
 }

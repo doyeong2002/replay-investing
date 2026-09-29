@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { env } from 'cloudflare:workers';
 
 const BASE_URL = 'https://openapi.tossinvest.com';
 let tokenCache: { value:string; expiresAt:number } | null = null;
 
 function runtimeVariable(name:string) {
-  const bindings = env as unknown as Record<string,unknown>;
-  const bindingValue = bindings[name];
-  if (typeof bindingValue === 'string') return bindingValue;
   return process.env[name];
 }
 
