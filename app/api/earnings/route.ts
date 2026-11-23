@@ -163,8 +163,8 @@ export async function GET(request: NextRequest) {
     const reportedRevenueEstimate = past[0]?.revenueEstimate ?? null;
     return NextResponse.json({
       symbol,
-      status: rows.length ? "available" : "unavailable",
-      message: rows.length ? null : "이 종목은 무료 실적 데이터에서 발표 이력을 찾지 못했습니다. ETF·ETN·펀드 등은 실적 발표 대상이 아닐 수 있습니다.",
+      status: rows.length || upcoming || financials ? "available" : "unavailable",
+      message: rows.length ? null : upcoming || financials ? "과거 발표 이력은 확인되지 않아 조회 가능한 예상치와 재무 수치만 표시합니다." : "이 종목은 무료 실적 데이터에서 발표 이력을 찾지 못했습니다. ETF·ETN·펀드 등은 실적 발표 대상이 아닐 수 있습니다.",
       upcoming,
       history: past,
       financials: financials ? {
@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
         grossMarginEstimate: null,
       } : null,
       volatility: { daily: stats.daily, annual: stats.annual, earningsMove: averageReaction },
-      source: rows.length ? "MarketBeat 실적 이력 · Yahoo Finance 가격" : "Yahoo Finance 가격",
+      source: rows.length ? "MarketBeat 실적 이력 · Yahoo Finance 가격" : upcoming ? "Nasdaq 예상 EPS · Yahoo Finance 재무·가격" : "Yahoo Finance 재무·가격",
     }, { headers: { "Cache-Control": "public, max-age=0, s-maxage=21600" } });
   } catch {
     return NextResponse.json({ message: "실적 또는 가격 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 502 });
