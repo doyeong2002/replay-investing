@@ -6,9 +6,12 @@
 
 ## 화면 예시
 
-![예시 데이터로 표시한 Replay 포트폴리오와 계좌 현황](public/replay-account-example.jpg)
+<p align="center">
+  <img src="public/replay-phone-portfolio.png" width="320" alt="Replay 예시 계좌 현황 모바일 화면">
+  <img src="public/replay-phone-movement.png" width="320" alt="Replay 예시 계좌 변동 모바일 화면">
+</p>
 
-위 이미지는 로컬에서 생성한 **예시 계좌 데이터**로 촬영했습니다. 표시된 잔액, 손익, 보유 종목과 계좌 흐름은 실제 계좌 정보가 아닙니다.
+두 화면은 로컬에서 생성한 **예시 계좌 데이터**로 촬영했습니다. 표시된 잔액, 손익, 보유 종목과 계좌 흐름은 실제 계좌 정보가 아닙니다.
 
 ## 개발 내용
 
