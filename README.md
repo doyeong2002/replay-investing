@@ -18,8 +18,8 @@
 ### 시장 지수와 관심종목
 
 <p align="center">
-  <img src="public/replay-phone-index.png" width="360" alt="Replay 주요 시장 지수 차트">
-  <img src="public/replay-phone-watchlist.png" width="360" alt="Replay 관심종목 목록 예시">
+  <img src="public/replay-phone-index.png" width="250" alt="Replay 주요 시장 지수 차트">
+  <img src="public/replay-phone-watchlist.png" width="250" alt="Replay 관심종목 목록 예시">
 </p>
 
 지수는 촬영 당시 조회한 시장 데이터입니다. **관심종목의 가격과 등락은 예시 시세**이며, 실제 계좌의 보유 종목은 포함하지 않았습니다.
@@ -27,8 +27,8 @@
 ### 시장 일정과 실적 분석
 
 <p align="center">
-  <img src="public/replay-phone-calendar.png" width="360" alt="Replay 주간 시장 일정과 실적 발표 목록">
-  <img src="public/replay-phone-earnings.png" width="360" alt="Replay AAPL 실적 분석 결과">
+  <img src="public/replay-phone-calendar.png" width="250" alt="Replay 주간 시장 일정과 실적 발표 목록">
+  <img src="public/replay-phone-earnings.png" width="250" alt="Replay AAPL 실적 분석 결과">
 </p>
 
 2026년 11월 23일에 조회한 화면입니다. AAPL 실적 분석은 확인 가능한 다음 분기 예상 EPS와 최근 재무 수치를 보여주며, **과거 발표 이력은 제공처에서 확인되지 않아 표시하지 않았습니다.**
@@ -36,7 +36,7 @@
 ### AI 종목 분석
 
 <p align="center">
-  <img src="public/replay-phone-ai.png" width="420" alt="Replay AAPL AI 종목 분석 결과">
+  <img src="public/replay-phone-ai.png" width="250" alt="Replay AAPL AI 종목 분석 결과">
 </p>
 
 AAPL을 입력해 조회한 결과입니다. 화면의 AI 설명과 시세·뉴스는 촬영 시점의 참고 정보입니다.
