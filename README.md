@@ -9,8 +9,8 @@
 ### 계좌 현황
 
 <p align="center">
-  <img src="public/replay-phone-portfolio.png" width="360" alt="Replay 예시 계좌 현황 모바일 화면">
-  <img src="public/replay-phone-movement.png" width="360" alt="Replay 예시 계좌 변동 모바일 화면">
+  <img src="public/replay-phone-portfolio.png" width="250" alt="Replay 예시 계좌 현황 모바일 화면">
+  <img src="public/replay-phone-movement.png" width="250" alt="Replay 예시 계좌 변동 모바일 화면">
 </p>
 
 두 화면은 로컬에서 생성한 **예시 계좌 데이터**로 촬영했습니다. 표시된 잔액, 손익, 보유 종목과 계좌 흐름은 실제 계좌 정보가 아닙니다.
@@ -28,10 +28,10 @@
 
 <p align="center">
   <img src="public/replay-phone-calendar.png" width="250" alt="Replay 주간 시장 일정과 실적 발표 목록">
-  <img src="public/replay-phone-earnings.png" width="250" alt="Replay AAPL 실적 분석 결과">
+  <img src="public/replay-phone-earnings.jpg" width="250" alt="Replay AAPL 실적 분석 결과">
 </p>
 
-2026년 11월 23일에 조회한 화면입니다. AAPL 실적 분석은 확인 가능한 다음 분기 예상 EPS와 최근 재무 수치를 보여주며, **과거 발표 이력은 제공처에서 확인되지 않아 표시하지 않았습니다.**
+2026년 11월 23일에 조회한 화면입니다. AAPL 실적 분석은 Nasdaq에서 제공하는 최근 분기별 예상·실제 EPS와 다음 분기 예상 EPS, 최근 재무 수치를 보여줍니다. **정확한 발표일과 발표 후 주가 반응은 해당 데이터에 없어 표시하지 않았습니다.**
 
 ### AI 종목 분석
 
@@ -57,7 +57,7 @@ AAPL을 입력해 조회한 결과입니다. 화면의 AI 설명과 시세·뉴�
 - **관심종목과 관찰 후보:** 관심종목을 분류해 전일 종가 대비 움직임과 차트를 비교합니다. 기술 지표에 맞는 종목을 관찰 후보로 보여주지만, 매수 추천으로 취급하지 않습니다.
 - **계좌 점검과 AI 종목 분석:** 현금 비중, 종목 집중도, 고변동성 노출, 계좌 변동을 점검합니다. 종목을 검색하면 가격·기술 구간·관련 뉴스와 AI가 정리한 대응 시나리오를 확인할 수 있습니다.
 - **리스크 리허설:** 나스닥·비트코인 등 선택한 시장 지표가 지정한 폭만큼 움직였던 과거 거래일을 찾아, 선택한 종목의 당시 등락을 비교합니다. 과거 반응을 살펴보는 기능이지 미래 수익률 예측은 아닙니다.
-- **실적 분석과 일정:** 예상·발표 EPS와 매출, 발표 후 주가 반응, 변동성 참고값을 확인합니다. 실적 발표와 주요 경제지표·금리 일정도 함께 살펴봅니다.
+- **실적 분석과 일정:** 분기별 예상·발표 EPS와 최근 재무 수치, 변동성 참고값을 확인합니다. 실적 발표와 주요 경제지표·금리 일정도 함께 살펴봅니다.
 
 ## 안전한 사용 범위
 

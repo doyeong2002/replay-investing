@@ -1951,29 +1951,28 @@ function EarningsView() {
       .finally(() => setLoading(false));
   };
   const eps = (value: number | null) => value === null ? "—" : `$${value.toFixed(2)}`;
-  const price = (value: number | null) => value === null ? "—" : `$${value.toFixed(2)}`;
   return (
     <section className="full-view earnings-view">
-      <div className="view-header earnings-header"><div><p className="eyebrow">EARNINGS REVIEW · READ ONLY</p><h1>실적 분석</h1><p>시장 예상과 발표 수치, 실적 발표 뒤 가격 반응, 다음 분기 기대치를 확인합니다.</p></div></div>
+      <div className="view-header earnings-header"><div><p className="eyebrow">EARNINGS REVIEW · READ ONLY</p><h1>실적 분석</h1><p>분기별 시장 예상과 발표 EPS, 다음 분기 기대치를 확인합니다.</p></div></div>
       <form className="earnings-search card" onSubmit={(event) => { event.preventDefault(); load(); }}>
         <label htmlFor="earnings-stock-query">종목 검색</label>
         <div className="earnings-search-row"><StockAutocomplete id="earnings-stock-query" value={query} onChange={setQuery} onPick={setQuery} placeholder="한글명 또는 티커" /><button className="primary-button" type="submit" disabled={loading || !query.trim()}>{loading ? "조회 중" : "실적 보기"}</button></div>
         <div className="earnings-quick"><span>빠른 선택</span>{["NVDA", "TSLA", "AAPL", "MSFT", "MSTR", "PLTR", "IREN"].map((symbol) => <button key={symbol} type="button" onClick={() => { setQuery(symbol); load(symbol); }}>{symbol}</button>)}</div>
       </form>
       {error && <div className="ai-analysis-error">{error}</div>}
-      {loading && <article className="rehearsal-empty card"><b>{query.toUpperCase()} 실적 이력과 가격 반응을 불러오고 있어요.</b></article>}
+      {loading && <article className="rehearsal-empty card"><b>{query.toUpperCase()} 분기별 실적을 불러오고 있어요.</b></article>}
       {result && !loading && <>
         {result.status === "unavailable" ? <article className="earnings-empty card"><b>{submitted} 실적 데이터를 찾지 못했습니다.</b><p>{result.message}</p></article> : <>
           <section className="earnings-overview">
             <article className="card"><span>다음 실적 예정</span><strong>{result.upcoming?.date ?? "일정 확인 중"}</strong><small>{result.upcoming ? `${result.upcoming.quarter} · 예상 EPS ${eps(result.upcoming.consensus)} · 예상 매출 ${result.upcoming.revenueEstimate ?? "집계 없음"}` : "공식 일정은 회사 공시를 함께 확인하세요."}</small></article>
             {result.history.length > 0 && <article className="card"><span>직전 실적</span><strong className={result.history[0].surprise === null ? "" : result.history[0].surprise >= 0 ? "positive" : "negative"}>{result.history[0].surprise === null ? "—" : `${result.history[0].surprise >= 0 ? "상회" : "하회"} ${eps(Math.abs(result.history[0].surprise))}`}</strong><small>{`예상 ${eps(result.history[0].consensus)} · 실제 ${eps(result.history[0].actual)}`}</small></article>}
-            {result.history.length > 0 && <article className="card"><span>실적 다음 거래일 평균 변동</span><strong className="accent">{result.volatility.earningsMove === null ? "—" : `±${result.volatility.earningsMove.toFixed(1)}%`}</strong><small>최근 실적 발표 다음 거래일의 절대 변동 평균</small></article>}
+            {result.volatility.earningsMove !== null && <article className="card"><span>실적 다음 거래일 평균 변동</span><strong className="accent">±{result.volatility.earningsMove.toFixed(1)}%</strong><small>최근 실적 발표 다음 거래일의 절대 변동 평균</small></article>}
           </section>
           {result.history.length > 0 ? <section className="earnings-history card">
-            <header><div><p className="eyebrow">EARNINGS HISTORY</p><h2>{submitted} 최근 실적</h2></div><small>시장 컨센서스 · 발표 수치 · 다음 거래일 반응</small></header>
+            <header><div><p className="eyebrow">EARNINGS HISTORY</p><h2>{submitted} 최근 실적</h2></div><small>{result.message}</small></header>
             <div className="earnings-table">
-              <div className="earnings-table-head"><span>발표일 / 분기</span><span>시장 예상 EPS</span><span>발표 EPS</span><span>예상 대비</span><span>발표 후 가격</span><span>등락</span></div>
-              {result.history.map((item) => <article key={`${item.date}-${item.quarter}`}><div><b>{item.date}</b><small>{item.quarter} · 매출 예상 {item.revenueEstimate ?? "—"} → 발표 {item.revenueActual ?? "—"}</small></div><span><small>시장 예상 EPS</small>{eps(item.consensus)}</span><span><small>발표 EPS</small>{eps(item.actual)}</span><strong className={(item.surprise ?? 0) >= 0 ? "positive" : "negative"}>{item.surprise === null ? "—" : `${item.surprise >= 0 ? "상회" : "하회"} ${eps(Math.abs(item.surprise))}`}</strong><span className="earnings-price-move"><small>발표일 → 다음 거래일</small><b>{price(item.reportClose)} → {price(item.nextClose)}</b></span><strong className={item.reaction === null ? "" : item.reaction >= 0 ? "positive" : "negative"}>{item.reaction === null ? "—" : pct(item.reaction)}</strong></article>)}
+              <div className="earnings-table-head"><span>대상 분기</span><span>시장 예상 EPS</span><span>발표 EPS</span><span>예상 대비</span></div>
+              {result.history.map((item) => <article key={`${item.date}-${item.quarter}`}><div><b>{item.quarter}</b><small>발표일 미제공</small></div><span><small>시장 예상 EPS</small>{eps(item.consensus)}</span><span><small>발표 EPS</small>{eps(item.actual)}</span><strong className={item.surprise === null ? "" : item.surprise >= 0 ? "positive" : "negative"}>{item.surprise === null ? "—" : `${item.surprise >= 0 ? "상회" : "하회"} ${eps(Math.abs(item.surprise))}`}</strong></article>)}
             </div>
           </section> : <article className="earnings-empty card"><b>과거 발표 이력은 확인되지 않았습니다.</b><p>{result.message}</p></article>}
           <section className="earnings-financials card"><header><div><p className="eyebrow">LATEST QUARTER</p><h2>최근 보고 분기 핵심</h2></div><small>{result.financials?.period ?? "분기 확인 중"}</small></header><div><article><span>매출</span><strong>실제 {result.financials?.revenue ?? "—"}</strong><small>예상 {result.financials?.revenueEstimate ?? "컨센서스 없음"}</small></article><article><span>영업이익</span><strong>실제 {result.financials?.operatingIncome ?? "—"}</strong><small>예상 {result.financials?.operatingIncomeEstimate ?? "컨센서스 없음"}</small></article><article><span>매출총이익률</span><strong>실제 {result.financials?.grossMargin === null || result.financials?.grossMargin === undefined ? "—" : `${result.financials.grossMargin.toFixed(1)}%`}</strong><small>예상 {result.financials?.grossMarginEstimate === null || result.financials?.grossMarginEstimate === undefined ? "컨센서스 없음" : `${result.financials.grossMarginEstimate.toFixed(1)}%`}</small></article></div></section>
